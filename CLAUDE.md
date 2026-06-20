@@ -2,40 +2,49 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Status:** QuickTeam is mid-rebuild into v1 — accountless, capability-URL shared lists
+> (htmx, server-rendered). The old account/password/team app has been torn down (slice 1).
+> See issue #1 for the full PRD and the slice issues (#2…) for the incremental plan.
+
 ## Commands
 
-- `npm start` — runs the server via `nodemon server.js` (auto-restarts on file changes). There is no separate dev/build step.
-- No test suite exists (`npm test` is a placeholder that exits 1).
+- `npm start` — runs the server via `nodemon server.js` (auto-restarts on file changes). No build step.
+- `npm test` — runs the test suite via Node's built-in runner (`node --test`), discovering `*.test.js`. No extra test framework; assertions use `node:assert/strict`.
 - No linter is configured.
 
-The server reads config from `config/.env` (gitignored). Required variables:
+The server reads config from `config/.env` (gitignored); see `config/.env.example`. Variables:
 - `PORT` — port for `app.listen`
 - `DB_STRING` — MongoDB connection URI (used by `config/database.js`)
+- `COOKIE_SECRET` — secret used to sign identity cookies (member + owner tokens)
 
 ## Architecture
 
-QuickTeam is a server-rendered (EJS) Express + MongoDB/Mongoose to-do app where todos are shared across a **team**. `server.js` wires up sessions (stored in Mongo via `connect-mongo`), Passport, flash, and mounts two routers: `routes/main.js` (`/`) for auth/landing and `routes/todos.js` (`/todos`) for todo CRUD. Standard layering: routes → `controllers/` → Mongoose `models/`. Views in `views/`, static assets in `public/`.
+QuickTeam is a server-rendered (EJS) Express + MongoDB/Mongoose app. A **list is a secret
+capability URL** (`/l/<token>`): anyone with the link can view and participate, with no account
+and no password. There is no login. (The old `User`/`SubUser`/Passport/bcrypt stack has been
+removed — do not reintroduce it.)
 
-### The team model is the core concept (read `models/User.js` + `config/passport.js`)
+- **`app.js`** builds and exports the Express app (middleware + routes) *without* connecting to a
+  DB or binding a port. This is the supertest seam — tests call `createApp()` directly.
+- **`server.js`** is the production entrypoint: load `.env`, `connectDB()`, then `app.listen()`.
+- Standard layering: `routes/` → `controllers/` → Mongoose `models/`. Views in `views/`, static
+  assets in `public/`. `routes/main.js` (`/`) currently serves the landing page.
+- **Identity is via signed cookies**, not sessions — `cookieParser(process.env.COOKIE_SECRET)`.
+- **htmx is vendored** at `public/js/htmx.min.js` (committed, served locally — never CDN, never
+  package-installed) to keep the app build-free and runnable unchanged for years.
 
-There are **two distinct user types**, defined as separate Mongoose models in `models/User.js`:
-- **`User`** — a full account with email + bcrypt-hashed password. The person who signs up becomes an admin.
-- **`SubUser`** — a passwordless team member who joins via an invite link. Authenticated by a `passKey` (a UUID), never a password.
+### Testing
 
-Both share an **`adminId`** field that ties everyone into one team:
-- On first save, a `User`/`SubUser` with no `adminId` sets `adminId = _id` (so the admin's own `adminId` equals their id). See the `pre('save')` hooks.
-- A `SubUser` is created with `adminId` set to the admin's id, so the whole team shares the admin's `adminId`.
+Single seam: **supertest driving the Express app over HTTP, backed by an ephemeral
+`mongodb-memory-server`** (`tests/helpers/db.js` exposes `connect`/`disconnect`/`clear`). Tests
+assert on externally observable behavior — the rendered HTML/htmx fragment, HTTP status,
+redirects, and resulting DB state — never on internal function shapes or template internals.
+Identity-bearing flows should use a supertest `agent` so cookies are exercised like a browser.
 
-**Team membership is therefore expressed purely by matching `adminId`** — there is no separate Team collection. Todos are scoped by `adminId` (`Todo.find({ adminId: req.user.adminId })`), so every member of a team sees the same todo list.
+### Direction (not yet built)
 
-### Dual-identity auth (Passport)
-
-`config/passport.js` uses a single `LocalStrategy` (email/password) for `User` login only. The non-obvious part is `serializeUser`/`deserializeUser`: the session stores **both an id and a `type`** (`'User'` or `'SubUser'`), and `deserializeUser` branches on `type` to load from the correct collection. Any code touching login/session must preserve this `{ id, type }` shape, because `SubUser`s have no password and can only be hydrated this way.
-
-SubUsers are logged in directly via `req.logIn()` (no LocalStrategy) — in `getAddSubUser` (existing SubUser revisiting the invite link) and `postAddSubUser` (new SubUser). Invite links have the shape `/addSubUser/:adminId/:passKey`. The `passKey` shown on the todos page is a freshly generated UUID (`getTodos` in `controllers/todos.js`).
-
-### Request flow notes
-
-- `middleware/auth.js` exports `ensureAuth` (redirects unauthenticated users to `/`). Note `routes/main.js` imports a non-existent `ensureGuest` from this module — it's unused, so it's `undefined` rather than an error.
-- Todo mutations from the browser (`public/js/main.js`) hit JSON endpoints (`markComplete`, `markIncomplete`, `deleteTodo` use `todoIdFromJSFile` in the body; `assignTodo` uses URL params) and then `location.reload()`. `createTodo` is a form POST that redirects.
-- `req.user.adminId` and `req.user.id` are the two values controllers key off of constantly — `adminId` for "the whole team", `id` for "this specific person" (e.g. counting todos assigned to the current user).
+Upcoming slices add: list creation → capability URL + owner cookie; name-gate join + per-device
+member identity; live polling of the items region (~3s, add-input kept outside the swap); Tier 0
+actions (add/check/uncheck) for everyone; Tier 1 actions (assign, subtasks, delete, reorder)
+behind a menu; owner-only list delete; caps + rate-limiting + 90-day inactivity expiry. The list
+will be modeled as **one Mongo document with embedded `members[]` and `items[]`**.

@@ -6,23 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/css/reset.css">
     <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/htmx.min.js" defer></script>
     <title>QuickTeam</title>
 </head>
 <body>
     <header>
         <h1>QuickTeam</h1>
     </header>
-    
+
     <main>
-        <h2>Welcome to QuickTeam!</h2>
+        <h2>Share a list. One link. No signup.</h2>
 
-        <div class="btns">
-        <a class="btn-1" href="/login"> Login</a>
-        <a class="btn-1" href="/signup"> Signup</a>
-        </div>
+        <!-- Inert until slice 2 wires up POST /l. -->
+        <form class="create-form" method="POST" action="/l">
+            <button type="submit" class="btn-1">Create a list</button>
+        </form>
 
-        <p class="margin-top-50">Looking to join someone else's team? Use the link they provided to you!</p>
-
+        <p class="margin-top-50">Looking to join someone else's list? Use the link they shared with you.</p>
     </main>
 </body>
 </html>
