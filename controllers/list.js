@@ -52,6 +52,13 @@ function renderList(req, res, list, { collision = null, error = null } = {}) {
   })
 }
 
+// Render just the items region — the fragment htmx swaps into #items after a
+// Tier 0 mutation. Same partial that list.ejs includes, so the swapped markup is
+// identical to a full render.
+function renderItems(res, list, member) {
+  res.render('partials/items', { list, member })
+}
+
 module.exports = {
   // POST /l — create a list with no account, claim ownership on this device,
   // and redirect to its secret capability URL.
@@ -111,4 +118,67 @@ module.exports = {
     res.cookie(memberCookieName(list.token), member.token, IDENTITY_COOKIE_OPTS)
     res.redirect(`/l/${list.token}`)
   },
+
+  // POST /l/:token/items — Tier 0: any joined member adds an item, attributed to
+  // them. Responds with the swapped items fragment.
+  addItem: async (req, res) => {
+    const list = await List.findOne({ token: req.params.token })
+    if (!list) {
+      return res.status(404).render('404')
+    }
+
+    const member = currentMember(req, list)
+    if (!member) {
+      return res.status(403).render('404')
+    }
+
+    const text = (req.body.text || '').trim()
+    if (text) {
+      list.items.push({
+        text,
+        addedByMemberId: member._id,
+        order: list.items.length,
+      })
+      list.lastActivityAt = Date.now()
+      await list.save()
+    }
+
+    renderItems(res, list, member)
+  },
+
+  // POST /l/:token/items/:itemId/check — Tier 0: mark an item done, recording who
+  // completed it. POST .../uncheck reverses it. Both return the items fragment.
+  checkItem: async (req, res) => {
+    return setItemDone(req, res, true)
+  },
+
+  uncheckItem: async (req, res) => {
+    return setItemDone(req, res, false)
+  },
+}
+
+// Shared check/uncheck: toggle `done` and the completed-by attribution, then swap
+// the items fragment. Unchecking clears who completed it.
+async function setItemDone(req, res, done) {
+  const list = await List.findOne({ token: req.params.token })
+  if (!list) {
+    return res.status(404).render('404')
+  }
+
+  const member = currentMember(req, list)
+  if (!member) {
+    return res.status(403).render('404')
+  }
+
+  const item = list.items.id(req.params.itemId)
+  if (!item) {
+    return res.status(404).render('404')
+  }
+
+  item.done = done
+  item.completedByMemberId = done ? member._id : null
+  list.lastActivityAt = Date.now()
+  await list.save()
+
+  renderItems(res, list, member)
 }

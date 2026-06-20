@@ -1,0 +1,46 @@
+<%
+  // Resolve an embedded member id to its display name. Members can't be hard
+  // removed yet, but guard anyway so a dangling id never crashes a render.
+  function memberName(id) {
+    if (!id) return 'someone'
+    const m = list.members.id(id)
+    return m ? m.name : 'someone'
+  }
+  const outstanding = list.items.filter((i) => !i.done).sort((a, b) => a.order - b.order)
+  const completed = list.items.filter((i) => i.done).sort((a, b) => a.order - b.order)
+%>
+<% if (list.items.length === 0) { %>
+    <p class="empty">Nothing here yet.</p>
+<% } %>
+
+<ul class="outstanding">
+    <% outstanding.forEach((item) => { %>
+        <li class="item" data-id="<%= item.id %>">
+            <form method="post"
+                  action="/l/<%= list.token %>/items/<%= item.id %>/check"
+                  hx-post="/l/<%= list.token %>/items/<%= item.id %>/check"
+                  hx-target="#items" hx-swap="innerHTML">
+                <button type="submit" class="check" aria-label="Check off">☐</button>
+            </form>
+            <span class="text"><%= item.text %></span>
+            <span class="byline">added by <%= memberName(item.addedByMemberId) %></span>
+        </li>
+    <% }) %>
+</ul>
+
+<% if (completed.length > 0) { %>
+    <ul class="completed">
+        <% completed.forEach((item) => { %>
+            <li class="item done" data-id="<%= item.id %>">
+                <form method="post"
+                      action="/l/<%= list.token %>/items/<%= item.id %>/uncheck"
+                      hx-post="/l/<%= list.token %>/items/<%= item.id %>/uncheck"
+                      hx-target="#items" hx-swap="innerHTML">
+                    <button type="submit" class="uncheck" aria-label="Uncheck">☑</button>
+                </form>
+                <span class="text"><%= item.text %></span>
+                <span class="byline">done by <%= memberName(item.completedByMemberId) %></span>
+            </li>
+        <% }) %>
+    </ul>
+<% } %>

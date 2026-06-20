@@ -46,11 +46,22 @@
                 <% } %>
             </section>
         <% } else { %>
-            <!-- Items region. Empty until slice 4 wires up adding items. -->
-            <section id="items" class="items">
-                <% if (list.items.length === 0) { %>
-                    <p class="empty">Nothing here yet.</p>
-                <% } %>
+            <section class="items-region">
+                <!-- The add-input lives outside #items so live polling (slice 5) can
+                     swap the items region without clobbering what's being typed. -->
+                <form class="add-item"
+                      method="post" action="/l/<%= list.token %>/items"
+                      hx-post="/l/<%= list.token %>/items"
+                      hx-target="#items" hx-swap="innerHTML"
+                      hx-on::after-request="this.reset()">
+                    <input class="text" type="text" name="text"
+                           placeholder="Add an item" autocomplete="off" required>
+                    <button type="submit" class="submit">Add</button>
+                </form>
+
+                <div id="items" class="items">
+                    <%- include('partials/items', { list, member }) %>
+                </div>
             </section>
         <% } %>
     </main>
