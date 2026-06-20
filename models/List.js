@@ -8,10 +8,16 @@ function generateToken() {
   return crypto.randomBytes(16).toString('base64url')
 }
 
-// Embedded sub-documents are intentionally minimal at this slice; later slices
-// (member identity, items, subtasks, assignment) flesh them out.
+// A member is a trust-based identity (a name) tied to one device by a secret
+// token. There is no cross-device unification: the same person on two devices is
+// two member records that may share a name. `admin` is reserved for v2.
+const MEMBER_ROLES = ['member', 'owner', 'admin']
 const memberSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
+  // Per-member secret carried by the signed device cookie that maps this device
+  // to this member. Unguessable, like the list and owner tokens.
+  token: { type: String, required: true, default: generateToken },
+  role: { type: String, enum: MEMBER_ROLES, default: 'member' },
 })
 
 const itemSchema = new mongoose.Schema({

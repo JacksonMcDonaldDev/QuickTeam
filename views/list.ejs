@@ -15,12 +15,44 @@
     </header>
 
     <main>
-        <!-- Items region. Empty until slice 4 wires up adding items. -->
-        <section id="items" class="items">
-            <% if (list.items.length === 0) { %>
-                <p class="empty">Nothing here yet.</p>
-            <% } %>
-        </section>
+        <% if (!member) { %>
+            <!-- Name-gate: a device joins once by typing a name. No account, no password. -->
+            <section id="join" class="join">
+                <% if (collision) { %>
+                    <h2>Someone here is already called <%= collision.name %></h2>
+                    <p>Are you them?</p>
+                    <form method="post" action="/l/<%= list.token %>/join">
+                        <input type="hidden" name="name" value="<%= collision.name %>">
+                        <input type="hidden" name="choice" value="existing">
+                        <button type="submit">Yes, continue as <%= collision.name %></button>
+                    </form>
+                    <form method="post" action="/l/<%= list.token %>/join">
+                        <label>No, I'll use a different name
+                            <input type="text" name="name" autofocus required>
+                        </label>
+                        <button type="submit">Join</button>
+                    </form>
+                <% } else { %>
+                    <h2>Join this list</h2>
+                    <form method="post" action="/l/<%= list.token %>/join">
+                        <label>Your name
+                            <input type="text" name="name" autofocus required>
+                        </label>
+                        <button type="submit">Join</button>
+                    </form>
+                    <% if (error) { %>
+                        <p class="error"><%= error %></p>
+                    <% } %>
+                <% } %>
+            </section>
+        <% } else { %>
+            <!-- Items region. Empty until slice 4 wires up adding items. -->
+            <section id="items" class="items">
+                <% if (list.items.length === 0) { %>
+                    <p class="empty">Nothing here yet.</p>
+                <% } %>
+            </section>
+        <% } %>
     </main>
 </body>
 </html>
