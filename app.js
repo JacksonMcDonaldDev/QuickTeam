@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser')
 const logger = require('morgan')
 
 const mainRoutes = require('./routes/main')
+const listRoutes = require('./routes/list')
 
 // Build the Express app without connecting to a database or binding a port,
 // so tests (supertest) and `server.js` can each wire up their own lifecycle.
@@ -26,6 +27,7 @@ function createApp() {
   }
 
   app.use('/', mainRoutes)
+  app.use('/l', listRoutes)
 
   return app
 }
